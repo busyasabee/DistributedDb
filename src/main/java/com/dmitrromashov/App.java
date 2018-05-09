@@ -1,7 +1,5 @@
 package com.dmitrromashov;
 
-
-import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
@@ -9,8 +7,7 @@ import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.internal.SessionImpl;
 
 import java.sql.Connection;
 import java.util.Date;
@@ -18,7 +15,6 @@ import java.util.Date;
 public class App
 {
     private static SessionFactory sessionFactory;
-    private static Connection connection;
 
     public static void main( String[] args )
     {
@@ -27,33 +23,20 @@ public class App
                     .configure("hibernate.cfg.xml")
                     .build();
             Metadata metadata = new MetadataSources(standardRegistry)
-                    .addAnnotatedClass(Country.class)
                     .buildMetadata();
-            System.out.println("Hello");
-            sessionFactory = metadata.getSessionFactoryBuilder().build();
-            connection = null;//sessionFactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class).getConnection();
 
-//            Configuration configuration = new Configuration()
-//                    .addAnnotatedClass(Country.class)
-//                    .setProperty("hibernate.dialect","org.hibernate.dialect.MySQL57Dialect")
-//                    .setProperty("hibernate.connection.driver_class", "com.mysql.jdbc.Driver")
-//                    .setProperty("hibernate.connection.url", "jdbc:mysql://localhost/distribute?serverTimezone=UTC&roundRobinLoadBalance=true")
-//                    .setProperty("hibernate.connection.username", "root")
-//                    .setProperty("hibernate.connection.password","123")
-//                    .setProperty("hibernate.show_sql", "true")
-//                    .setProperty("hibernate.hbm2ddl.auto", "validate");
-//            sessionFactory = configuration.
-//                    buildSessionFactory();
+            sessionFactory = metadata.getSessionFactoryBuilder().build();
+
         } catch (Exception e){
             System.err.println("Failed to create sessionFactory object." + e);
             throw new ExceptionInInitializerError(e);
         }
+
+
         App app = new App();
         String countryName = "England";
-        //Country country = app.addCountry(countryName);
-        Country country2 = app.readCountry(1);
-        System.out.println("Read country name " + country2.getName());
-//        app.addCoach("Zinedin", "Zidan", country, new Date(1972, 6, 23),)
+        app.addCountry(countryName);
+        Country country = app.readCountry(1);
         sessionFactory.close();
     }
 
@@ -63,11 +46,12 @@ public class App
         Country country = new Country();
 
         try {
-            //Connection connection = sessionFactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class).getConnection();
-            connection.setReadOnly(true);
             session = sessionFactory.openSession();
+            Connection connection = ((SessionImpl)session).connection();
+            connection.setReadOnly(true);
             tx = session.beginTransaction();
             country = session.get(Country.class, countryId);
+            System.out.println("Readed country name = " + country.getName());
             tx.commit();
             connection.close();
         } catch (Exception e) {
@@ -79,22 +63,21 @@ public class App
         return country;
     }
 
-    public Country addCountry(String countryName){
+    public void addCountry(String countryName){
         Session session = null;
-//        session.setDefaultReadOnly(true); // не то
         Transaction tx = null;
         Integer countryId = null;
         Country country = new Country();
 
         try {
-            Connection connection = sessionFactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class).getConnection();
-//            connection.setReadOnly(true);
             session = sessionFactory.openSession();
+            Connection connection = ((SessionImpl)session).connection();
+            connection.setReadOnly(false);
             tx = session.beginTransaction();
 
             country.setName(countryName);
             countryId = (Integer) session.save(country);
-            System.out.println("Country " + countryName + " id = " + countryId);
+            System.out.println("Country " + countryName + " id = " + countryId + " added") ;
             tx.commit();
             connection.close();
         } catch (Exception e) {
@@ -103,7 +86,6 @@ public class App
         } finally {
             session.close();
         }
-        return country;
     }
 
     public Integer addCoach(String coachName, String coachSurname, Country coachCountry, Date coachDayOfBirth, Country country){
@@ -113,9 +95,9 @@ public class App
         Integer coachId = null;
 
         try {
-            Connection connection = sessionFactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class).getConnection();
-            connection.setReadOnly(true);
             session = sessionFactory.openSession();
+            Connection connection = ((SessionImpl)session).connection();
+            connection.setReadOnly(false);
             tx = session.beginTransaction();
             Coach coach = new Coach();
             coach.setName(coachName);
